@@ -88,10 +88,12 @@ Dos cosas que conviene tener presentes al tocar `bot/game/balance.py`:
 - La tabla de XP de referencia del `CLAUDE.md` (465 en el nivel 5, 1.588 en el 10, 4.869 en el
   20) no la produce ningún exponente. Manda la fórmula `int(40 * nivel ** 1.6)`, que da 525,
   1.592 y 4.827. Los tests comprueban la fórmula.
-- Un combate ganado cuesta en torno al 70 % de la vida máxima, y la vida se recupera al 2 %
-  cada 2 minutos: 100 minutos para curarse del todo frente a los 6 minutos que tarda en llegar
-  cada punto de energía. Encadenando los 20 puntos de energía de una sentada se ganan sobre
-  1 de cada 20 combates. Si el ritmo se quiere más suave, la palanca es `HP_REGEN_PERCENT`.
+- Ganar un combate se lleva la mayor parte de la vida, y la vida se recupera al 2 % cada 2
+  minutos: 100 minutos para curarse del todo frente a los 6 minutos que tarda en llegar cada
+  punto de energía. Simulando sesiones completas de 20 puntos de energía, un nivel 5 gana el
+  6,6 % de los combates si los encadena y el 43 % si espera una hora entre uno y otro. Con los
+  tests de combate no se ve porque cada combate simulado empieza a vida llena. Si el ritmo se
+  quiere más suave, la palanca es `HP_REGEN_PERCENT`.
 
 ## Ideas futuras
 
