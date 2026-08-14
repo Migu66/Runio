@@ -10,6 +10,7 @@ import aiosqlite
 import pytest
 
 from bot import db as database
+from bot.game import balance
 from bot.models import ItemDraft, Monster
 from bot.repo import fights, items, players
 
@@ -18,6 +19,7 @@ T = TypeVar("T")
 MONSTER = Monster(
     name="Goblin salvaje", emoji="👺", level=5, max_hp=100, atk=16, defense=5, is_boss=False
 )
+AHORA = 1_700_000_000  # una marca de tiempo creíble, no un 1.000 de juguete
 DRAFT = ItemDraft(
     slot="weapon", name="Espada de hierro", rarity="common", item_level=5, atk=8, defense=0, crit=0
 )
@@ -221,6 +223,58 @@ def test_la_mochila_se_pagina_con_lo_mas_nuevo_delante(tmp_path: Path) -> None:
         assert [i.name for i in segunda] == ["Cosa 1", "Cosa 0"]
         assert await items.position(db, 7, creados[-1].id) == 0
         assert await items.position(db, 7, creados[0].id) == 9
+
+    run_with_db(tmp_path, scenario)
+
+
+def test_el_diario_solo_se_cobra_una_vez_cada_veinte_horas(tmp_path: Path) -> None:
+    async def scenario(db: aiosqlite.Connection) -> None:
+        await players.get_or_create(db, 7, "Ana", AHORA)
+        await db.execute("UPDATE players SET gold = 10, potions = 0, energy = 2 WHERE user_id = 7")
+
+        premiado = await players.claim_daily(db, 7, AHORA)
+        assert premiado is not None  # con last_daily a 0 la primera siempre toca
+        assert premiado.gold == 10 + balance.DAILY_GOLD
+        assert premiado.potions == balance.DAILY_POTIONS
+        assert premiado.energy == balance.ENERGY_MAX
+        assert premiado.last_daily == AHORA
+
+        assert await players.claim_daily(db, 7, AHORA + balance.DAILY_COOLDOWN_SECONDS - 1) is None
+        otra = await players.claim_daily(db, 7, AHORA + balance.DAILY_COOLDOWN_SECONDS)
+        assert otra is not None and otra.gold == 10 + 2 * balance.DAILY_GOLD
+
+    run_with_db(tmp_path, scenario)
+
+
+def test_el_ranking_ordena_por_nivel_y_luego_por_xp(tmp_path: Path) -> None:
+    async def scenario(db: aiosqlite.Connection) -> None:
+        for user_id, level, xp in ((1, 3, 10), (2, 5, 0), (3, 5, 90), (4, 1, 999)):
+            await players.get_or_create(db, user_id, f"J{user_id}", 1_000)
+            await db.execute(
+                "UPDATE players SET level = ?, xp = ? WHERE user_id = ?", (level, xp, user_id)
+            )
+
+        top = await players.top(db, 10)
+        assert [p.user_id for p in top] == [3, 2, 1, 4]
+
+        for puesto, esperado in enumerate(top, start=1):
+            assert await players.rank_of(db, esperado) == puesto
+
+    run_with_db(tmp_path, scenario)
+
+
+def test_lo_equipado_no_sale_en_la_lista_de_venta(tmp_path: Path) -> None:
+    async def scenario(db: aiosqlite.Connection) -> None:
+        await players.get_or_create(db, 7, "Ana", 1_000)
+        arma = await items.create(db, 7, DRAFT, 1_000)
+        suelto = await items.create(db, 7, replace(DRAFT, name="Daga suelta"), 1_000)
+        await items.equip(db, 7, arma)
+
+        actualizado = await players.get(db, 7)
+        assert actualizado is not None
+        assert await items.count_sellable(db, actualizado) == 1
+        vendibles = await items.sellable_page(db, actualizado, 8, 0)
+        assert [i.id for i in vendibles] == [suelto.id]
 
     run_with_db(tmp_path, scenario)
 

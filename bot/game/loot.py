@@ -83,6 +83,11 @@ def generate(item_level: int, rng: random.Random) -> ItemDraft:
     )
 
 
+def sell_price(item_level: int, rarity: str) -> int:
+    """Lo que paga la tienda: 10 por nivel, ajustado por el multiplicador de rareza."""
+    return max(1, round(balance.SELL_PRICE_PER_LEVEL * item_level * multiplier(rarity)))
+
+
 def roll(item_level: int, rng: random.Random) -> ItemDraft | None:
     """Tirada de botín tras una victoria. None si el monstruo no suelta nada."""
     if rng.random() >= balance.LOOT_CHANCE:

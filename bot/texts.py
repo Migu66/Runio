@@ -23,6 +23,12 @@ BAR_EMPTY = "░"
 BTN_PROFILE = "👤 Perfil"
 BTN_DUNGEON = "⚔️ Mazmorra"
 BTN_INVENTORY = "🎒 Equipo"
+BTN_SHOP = "🏪 Tienda"
+BTN_RANKING = "🏆 Ranking"
+BTN_DAILY = "🎁 Diario"
+BTN_BUY_POTION = "🧪 Comprar poción ({price})"
+BTN_SELL_LIST = "📦 Vender objetos"
+BTN_SHOP_BACK = "◀ Volver a la tienda"
 BTN_ATTACK = "⚔️ Atacar"
 BTN_POTION = "🧪 Poción ({n})"
 BTN_FLEE = "🏃 Huir"
@@ -125,6 +131,35 @@ EQUIPPED_OK = "Equipado: {item}"
 ITEM_GONE = "Ese objeto ya no está en tu mochila"
 NOT_YOURS = "Eso no es tuyo"
 
+SHOP = (
+    "🏪 <b>Tienda</b>\n\n"
+    "💰 {gold} de oro   🧪 {potions} pociones\n\n"
+    "Una poción cura el {heal}% de tu vida máxima y cuesta {price} de oro."
+)
+SHOP_SELL = (
+    "📦 <b>Vender</b> — {total} objetos (página {page}/{pages})\n\n{items}\n\n"
+    "Pulsa el número para venderlo. Lo que llevas puesto no aparece aquí."
+)
+SHOP_SELL_EMPTY = "📦 No tienes nada suelto que vender."
+SELL_LINE = "{index}. {slot} {item} → 💰 {price}"
+BOUGHT = "🧪 Poción comprada. Te quedan {gold} de oro."
+NOT_ENOUGH_GOLD = "No te llega el oro: cuesta {price} y tienes {gold}"
+SOLD = "Vendido por {price} de oro"
+CANNOT_SELL_EQUIPPED = "Eso lo llevas puesto"
+
+DAILY_OK = (
+    "🎁 <b>Recompensa diaria</b>\n\n"
+    "💰 +{gold} de oro   🧪 +{potions} pociones   ⚡ energía al máximo\n\n"
+    "Vuelve dentro de {hours} horas."
+)
+DAILY_WAIT = "🎁 Ya la cobraste. Vuelve en {time}."
+
+RANKING = "🏆 <b>Ranking</b>\n\n{rows}"
+RANKING_ROW = "{medal} <b>{name}</b> — nivel {level} · {xp} XP"
+RANKING_MEDALS = ("🥇", "🥈", "🥉")
+RANKING_SELF = "\n\nTú vas el {rank}.º con nivel {level}."
+RANKING_EMPTY = "🏆 Todavía no hay nadie en el ranking."
+
 NO_ENERGY = "⚡ Te has quedado sin energía. Vuelve en {time}."
 FIGHT_ALREADY_ACTIVE = "Ya tienes un combate en marcha. Resuélvelo antes de buscar otro."
 NOT_YOUR_FIGHT = "Ese no es tu combate"
@@ -147,6 +182,11 @@ def progress_bar(current: int, total: int, width: int = BAR_WIDTH) -> str:
     if filled == 0 and current > 0:
         filled = 1
     return BAR_FULL * filled + BAR_EMPTY * (width - filled)
+
+
+def number(value: int) -> str:
+    """Separador de miles a la española: 4.869."""
+    return f"{value:,}".replace(",", ".")
 
 
 def format_duration(seconds: int) -> str:
@@ -247,6 +287,46 @@ def render_defeat(monster: Monster, gold_lost: int, hp: int, max_hp_value: int) 
     return DEFEAT.format(monster=escape(monster.name), gold=gold_lost, hp=hp, max_hp=max_hp_value)
 
 
+def render_shop(player: Player) -> str:
+    return SHOP.format(
+        gold=number(player.gold),
+        potions=player.potions,
+        heal=round(balance.POTION_HEAL_PERCENT * 100),
+        price=balance.POTION_PRICE,
+    )
+
+
+def render_sell_list(items: list[Item], page: int, pages: int, total: int) -> str:
+    lines = [
+        SELL_LINE.format(
+            index=index,
+            slot=SLOT_EMOJI[item.slot],
+            item=format_item(item),
+            price=number(loot.sell_price(item.item_level, item.rarity)),
+        )
+        for index, item in enumerate(items, start=1)
+    ]
+    return SHOP_SELL.format(total=total, page=page, pages=pages, items="\n".join(lines))
+
+
+def render_ranking(leaders: list[Player], player: Player, rank: int) -> str:
+    if not leaders:
+        return RANKING_EMPTY
+    rows = [
+        RANKING_ROW.format(
+            medal=RANKING_MEDALS[index] if index < len(RANKING_MEDALS) else f"{index + 1}.",
+            name=escape(leader.name),
+            level=leader.level,
+            xp=number(leader.xp),
+        )
+        for index, leader in enumerate(leaders)
+    ]
+    text = RANKING.format(rows="\n".join(rows))
+    if rank > len(leaders):
+        text += RANKING_SELF.format(rank=rank, level=player.level)
+    return text
+
+
 def render_profile(
     player: Player,
     stats: Stats,
@@ -262,8 +342,8 @@ def render_profile(
         hp=player.hp,
         max_hp=max_hp,
         xp_bar=progress_bar(player.xp, xp_next),
-        xp=player.xp,
-        xp_next=xp_next,
+        xp=number(player.xp),
+        xp_next=number(xp_next),
         energy=player.energy,
         energy_max=balance.ENERGY_MAX,
         energy_hint=energy_hint,
@@ -273,7 +353,7 @@ def render_profile(
         weapon=format_item(equipped.get(SLOT_WEAPON)),
         armor=format_item(equipped.get(SLOT_ARMOR)),
         amulet=format_item(equipped.get(SLOT_AMULET)),
-        gold=player.gold,
+        gold=number(player.gold),
         potions=player.potions,
         wins=player.wins,
         losses=player.losses,

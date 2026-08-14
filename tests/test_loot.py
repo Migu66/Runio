@@ -91,6 +91,16 @@ def test_el_nivel_del_objeto_es_el_del_monstruo() -> None:
         assert item.item_level == nivel
 
 
+def test_el_precio_de_venta_sigue_nivel_y_rareza() -> None:
+    assert loot.sell_price(1, "common") == 10
+    assert loot.sell_price(5, "common") == 50
+    assert loot.sell_price(5, "legendary") == 150
+    assert loot.sell_price(20, "rare") == 320
+    for rarity in RARITIES:
+        assert loot.sell_price(1, rarity) >= 1
+        assert loot.sell_price(10, rarity) > loot.sell_price(1, rarity)
+
+
 def test_el_amuleto_reparte_la_potencia_a_medias() -> None:
     rng = random.Random(6)
     amuletos = [i for i in (loot.generate(20, rng) for _ in range(3_000)) if i.slot == SLOT_AMULET]

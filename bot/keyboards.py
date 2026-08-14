@@ -4,8 +4,8 @@ from aiogram.types import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMar
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot import texts
-from bot.callbacks import EquipCB, FightCB, InventoryCB
-from bot.game import combat
+from bot.callbacks import EquipCB, FightCB, InventoryCB, SellCB, ShopCB
+from bot.game import balance, combat
 from bot.models import Fight, Item
 
 
@@ -13,9 +13,53 @@ def main_menu() -> ReplyKeyboardMarkup:
     """Teclado persistente con las acciones del día a día."""
     rows = [
         [KeyboardButton(text=texts.BTN_DUNGEON), KeyboardButton(text=texts.BTN_PROFILE)],
-        [KeyboardButton(text=texts.BTN_INVENTORY)],
+        [KeyboardButton(text=texts.BTN_INVENTORY), KeyboardButton(text=texts.BTN_SHOP)],
+        [KeyboardButton(text=texts.BTN_RANKING), KeyboardButton(text=texts.BTN_DAILY)],
     ]
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, is_persistent=True)
+
+
+def shop_main(user_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text=texts.BTN_BUY_POTION.format(price=balance.POTION_PRICE),
+        callback_data=ShopCB(action="buy", page=1, user_id=user_id),
+    )
+    builder.button(
+        text=texts.BTN_SELL_LIST,
+        callback_data=ShopCB(action="sell", page=1, user_id=user_id),
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def shop_sell(items: list[Item], page: int, pages: int, user_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for index, item in enumerate(items, start=1):
+        builder.button(
+            text=str(index),
+            callback_data=SellCB(item_id=item.id, page=page, user_id=user_id),
+        )
+    builder.adjust(4)
+
+    extra = InlineKeyboardBuilder()
+    if page > 1:
+        extra.button(
+            text=texts.BTN_PREV, callback_data=ShopCB(action="sell", page=page - 1, user_id=user_id)
+        )
+    if page < pages:
+        extra.button(
+            text=texts.BTN_NEXT, callback_data=ShopCB(action="sell", page=page + 1, user_id=user_id)
+        )
+    extra.adjust(2)
+    builder.attach(extra)
+
+    volver = InlineKeyboardBuilder()
+    volver.button(
+        text=texts.BTN_SHOP_BACK, callback_data=ShopCB(action="main", page=1, user_id=user_id)
+    )
+    builder.attach(volver)
+    return builder.as_markup()
 
 
 def inventory(items: list[Item], page: int, pages: int, user_id: int) -> InlineKeyboardMarkup:

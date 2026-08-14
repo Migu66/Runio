@@ -18,3 +18,15 @@ class EquipCB(CallbackData, prefix="eq"):
 class InventoryCB(CallbackData, prefix="inv"):
     page: int
     user_id: int
+
+
+class ShopCB(CallbackData, prefix="sh"):
+    action: str  # "main" | "buy" | "sell"
+    page: int
+    user_id: int
+
+
+class SellCB(CallbackData, prefix="sl"):
+    item_id: int
+    page: int
+    user_id: int

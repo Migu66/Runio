@@ -82,6 +82,66 @@ async def save_after_fight(db: aiosqlite.Connection, player: Player) -> None:
     )
 
 
+async def set_purse(db: aiosqlite.Connection, user_id: int, gold: int, potions: int) -> None:
+    await db.execute(
+        "UPDATE players SET gold = ?, potions = ? WHERE user_id = ?", (gold, potions, user_id)
+    )
+
+
+async def claim_daily(db: aiosqlite.Connection, user_id: int, now: int) -> Player | None:
+    """Cobra la recompensa diaria. None si todavía no toca."""
+    async with transaction(db):
+        current = await get(db, user_id)
+        if current is None or now - current.last_daily < balance.DAILY_COOLDOWN_SECONDS:
+            return None
+        updated = replace(
+            current,
+            gold=current.gold + balance.DAILY_GOLD,
+            potions=current.potions + balance.DAILY_POTIONS,
+            energy=balance.ENERGY_MAX,
+            energy_ts=now,
+            last_daily=now,
+        )
+        await db.execute(
+            """
+            UPDATE players SET gold = ?, potions = ?, energy = ?, energy_ts = ?, last_daily = ?
+            WHERE user_id = ?
+            """,
+            (
+                updated.gold,
+                updated.potions,
+                updated.energy,
+                updated.energy_ts,
+                updated.last_daily,
+                user_id,
+            ),
+        )
+    return updated
+
+
+async def top(db: aiosqlite.Connection, limit: int) -> list[Player]:
+    async with db.execute(
+        "SELECT * FROM players ORDER BY level DESC, xp DESC, user_id ASC LIMIT ?", (limit,)
+    ) as cur:
+        rows = await cur.fetchall()
+    return [_to_player(row) for row in rows]
+
+
+async def rank_of(db: aiosqlite.Connection, player: Player) -> int:
+    """Puesto del jugador, contando cuántos van por delante."""
+    async with db.execute(
+        """
+        SELECT COUNT(*) + 1 FROM players
+        WHERE level > ?
+           OR (level = ? AND xp > ?)
+           OR (level = ? AND xp = ? AND user_id < ?)
+        """,
+        (player.level, player.level, player.xp, player.level, player.xp, player.user_id),
+    ) as cur:
+        row = await cur.fetchone()
+    return int(row[0]) if row is not None else 1
+
+
 async def get_or_create(
     db: aiosqlite.Connection, user_id: int, name: str, now: int
 ) -> tuple[Player, bool]:
