@@ -27,6 +27,66 @@ El token se saca hablando con [@BotFather](https://t.me/BotFather) → `/newbot`
 | `LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`… Por defecto `INFO` |
 | `ADMIN_IDS` | Lista de identificadores separados por comas. Opcional |
 
+## Alojarlo en un servidor
+
+El bot usa *long polling*: no necesita dominio, ni certificado, ni puertos abiertos, solo salida
+a internet. Lo que sí necesita es **disco persistente**, porque las partidas viven en un fichero
+SQLite. Eso descarta los planes gratuitos con sistema de ficheros efímero, que borrarían
+`rpg.db` en cada reinicio: hace falta una máquina de verdad, sea alquilada o la de tu casa.
+
+Con Python 3.11 o superior instalado, en la máquina:
+
+```bash
+sudo adduser --system --group --home /opt/runio runio
+sudo -u runio git clone https://github.com/Migu66/Runio.git /opt/runio
+cd /opt/runio
+sudo -u runio python3 -m venv .venv
+sudo -u runio .venv/bin/pip install -r requirements.txt
+sudo -u runio cp .env.example .env
+sudo -u runio nano .env      # y pega el token
+```
+
+Y para que arranque al encender la máquina y se levante solo si se cae, en
+`/etc/systemd/system/runio.service`:
+
+```ini
+[Unit]
+Description=Runio, bot de Telegram
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=runio
+WorkingDirectory=/opt/runio
+ExecStart=/opt/runio/.venv/bin/python -m bot
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable --now runio
+sudo journalctl -u runio -f      # ver el log en directo
+```
+
+La ruta de trabajo es la que hace que el bot encuentre su `.env` y deje el `rpg.db` al lado.
+
+### Copia de seguridad
+
+Las partidas son un único fichero. Esta línea saca una copia en caliente, con el bot en marcha,
+sin instalar nada:
+
+```bash
+/opt/runio/.venv/bin/python -c \
+  "import sqlite3; sqlite3.connect('/opt/runio/rpg.db').backup(sqlite3.connect('/opt/runio/copia.db'))"
+```
+
+Métela en un `cron` diario y llévate la copia fuera de la máquina de vez en cuando.
+
 ## Comandos
 
 | Comando | Qué hace |
