@@ -1,0 +1,22 @@
+[project]
+name = "runio"
+version = "0.1.0"
+description = "Bot de Telegram de RPG de progresión"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# Ruff formatea también los bloques de código de los .md; la documentación es nuestra.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
