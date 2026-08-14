@@ -56,6 +56,38 @@ WELCOME_BACK = "Ya tienes personaje, <b>{name}</b>. Mira tu ficha con /perfil."
 
 NO_PLAYER = "Todavía no tienes personaje. Usa /start para crear uno."
 
+SOMETHING_BROKE = "Algo se ha torcido por aquí dentro. Inténtalo otra vez en un momento."
+
+COMMANDS: tuple[tuple[str, str], ...] = (
+    ("start", "Crear personaje"),
+    ("perfil", "Tu ficha"),
+    ("mazmorra", "Bajar a pelear"),
+    ("equipo", "Mochila y equipo"),
+    ("tienda", "Comprar y vender"),
+    ("ranking", "Los diez mejores"),
+    ("diario", "Recompensa diaria"),
+    ("ayuda", "Cómo se juega"),
+)
+
+HELP = (
+    "❓ <b>Cómo se juega</b>\n\n"
+    "⚔️ <b>Mazmorra</b>. /mazmorra gasta 1 de energía y te planta delante de un bicho. "
+    "El combate va por turnos: atacas, bebes una poción o intentas huir. "
+    "Curarte cuesta el turno y el enemigo pega igual.\n\n"
+    "⚡ <b>Energía</b>. Tienes {energy_max} puntos y se rellena sola, uno cada {energy_min} "
+    "minutos. La vida también se recupera con el tiempo, más despacio.\n\n"
+    "✨ <b>Nivel</b>. Cada victoria da experiencia y oro. Al subir de nivel te curas del todo "
+    "y pegas más fuerte.\n\n"
+    "💀 <b>Derrota</b>. Pierdes el {gold_penalty}% del oro y despiertas a media vida. "
+    "Ni la experiencia ni los objetos se tocan.\n\n"
+    "🎁 <b>Botín</b>. Uno de cada dos enemigos suelta algo. Míralo en /equipo y equípatelo: "
+    "el ▲ del mensaje de victoria te dice si mejora lo que llevas.\n\n"
+    "🏪 <b>Tienda</b>. Pociones a {potion_price} de oro; lo que no uses, se vende.\n\n"
+    "👑 <b>Jefes</b>. Cada {boss_every} niveles puede salirte uno: pega más, aguanta más "
+    "y paga {boss_reward} veces más.\n\n"
+    "🎁 /diario te da oro, pociones y la energía llena cada {daily_hours} horas."
+)
+
 PROFILE = (
     "👤 <b>{name}</b> — nivel {level}\n"
     "❤️ {hp_bar} {hp}/{max_hp}\n"
@@ -285,6 +317,18 @@ def render_victory(monster: Monster, xp: int, gold: int, levels: int, level: int
 
 def render_defeat(monster: Monster, gold_lost: int, hp: int, max_hp_value: int) -> str:
     return DEFEAT.format(monster=escape(monster.name), gold=gold_lost, hp=hp, max_hp=max_hp_value)
+
+
+def render_help() -> str:
+    return HELP.format(
+        energy_max=balance.ENERGY_MAX,
+        energy_min=balance.ENERGY_REGEN_SECONDS // 60,
+        gold_penalty=round(balance.DEATH_GOLD_PENALTY * 100),
+        potion_price=balance.POTION_PRICE,
+        boss_every=balance.BOSS_EVERY_LEVELS,
+        boss_reward=str(balance.BOSS_REWARD_MULTIPLIER).replace(".", ","),
+        daily_hours=balance.DAILY_COOLDOWN_SECONDS // 3600,
+    )
 
 
 def render_shop(player: Player) -> str:

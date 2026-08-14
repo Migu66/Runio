@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Runio (python -m bot)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "bot",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}

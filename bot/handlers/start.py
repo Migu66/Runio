@@ -2,7 +2,7 @@ import time
 
 import aiosqlite
 from aiogram import Router
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
 from bot import keyboards, texts
@@ -22,3 +22,8 @@ async def cmd_start(message: Message, db: aiosqlite.Connection) -> None:
         template.format(name=texts.escape(player.name)),
         reply_markup=keyboards.main_menu(),
     )
+
+
+@router.message(Command("ayuda"))
+async def cmd_help(message: Message) -> None:
+    await message.answer(texts.render_help())
