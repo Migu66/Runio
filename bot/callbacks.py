@@ -8,3 +8,13 @@ class FightCB(CallbackData, prefix="f"):
     fight_id: int
     turn: int
     user_id: int
+
+
+class EquipCB(CallbackData, prefix="eq"):
+    item_id: int
+    user_id: int
+
+
+class InventoryCB(CallbackData, prefix="inv"):
+    page: int
+    user_id: int

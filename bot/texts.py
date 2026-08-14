@@ -2,7 +2,7 @@
 
 import html
 
-from bot.game import balance, formulas
+from bot.game import balance, formulas, loot
 from bot.game.combat import Event
 from bot.models import (
     SLOT_AMULET,
@@ -10,6 +10,7 @@ from bot.models import (
     SLOT_WEAPON,
     Fight,
     Item,
+    ItemDraft,
     Monster,
     Player,
     Stats,
@@ -21,9 +22,22 @@ BAR_EMPTY = "░"
 
 BTN_PROFILE = "👤 Perfil"
 BTN_DUNGEON = "⚔️ Mazmorra"
+BTN_INVENTORY = "🎒 Equipo"
 BTN_ATTACK = "⚔️ Atacar"
 BTN_POTION = "🧪 Poción ({n})"
 BTN_FLEE = "🏃 Huir"
+BTN_PREV = "◀"
+BTN_NEXT = "▶"
+
+SLOT_NAMES = {"weapon": "Arma", "armor": "Armadura", "amulet": "Amuleto"}
+SLOT_EMOJI = {"weapon": "🗡️", "armor": "🥋", "amulet": "📿"}
+RARITY_NAMES = {
+    "common": "Común",
+    "uncommon": "Poco común",
+    "rare": "Raro",
+    "epic": "Épico",
+    "legendary": "Legendario",
+}
 
 WELCOME = (
     "⚔️ <b>Runio</b>\n\n"
@@ -96,6 +110,21 @@ DEFEAT = (
 FLED = "🏃 <b>Huida</b>\n\nEscapas de {monster}. Sin premio, pero vivo."
 DRAW = "🤝 <b>Tablas</b>\n\n{monster} y tú os quedáis sin fuelle. Nadie se lleva nada."
 
+DROP = "\n\n🎁 Botín: {item}\n{comparison}"
+DROP_BETTER = "▲ Mejora tu {slot} ({before} → {after})"
+DROP_WORSE = "▼ Peor que tu {slot} ({before} → {after})"
+DROP_EQUAL = "◆ Igual que tu {slot}"
+DROP_EMPTY = "▲ Tienes la ranura de {slot} vacía"
+
+INVENTORY = "🎒 <b>Mochila</b> — {total} objetos (página {page}/{pages})\n\n{items}\n\n{hint}"
+INVENTORY_EMPTY = "🎒 Tu mochila está vacía. Baja a la /mazmorra a por algo."
+INVENTORY_LINE = "{index}. {item}{equipped}"
+INVENTORY_HINT = "Pulsa el número para equiparlo."
+EQUIPPED_MARK = "  ✅"
+EQUIPPED_OK = "Equipado: {item}"
+ITEM_GONE = "Ese objeto ya no está en tu mochila"
+NOT_YOURS = "Eso no es tuyo"
+
 NO_ENERGY = "⚡ Te has quedado sin energía. Vuelve en {time}."
 FIGHT_ALREADY_ACTIVE = "Ya tienes un combate en marcha. Resuélvelo antes de buscar otro."
 NOT_YOUR_FIGHT = "Ese no es tu combate"
@@ -132,10 +161,52 @@ def format_duration(seconds: int) -> str:
     return f"{hours}h {mins:02d}m"
 
 
-def format_item(item: Item | None) -> str:
+def item_stats(item: Item | ItemDraft) -> str:
+    partes = []
+    if item.atk:
+        partes.append(f"⚔️{item.atk}")
+    if item.defense:
+        partes.append(f"🛡️{item.defense}")
+    if item.crit:
+        partes.append(f"🎯{item.crit}%")
+    return " ".join(partes)
+
+
+def format_item(item: Item | ItemDraft | None) -> str:
     if item is None:
         return EMPTY_SLOT
-    return escape(item.name)
+    return f"{loot.emoji(item.rarity)} {escape(item.name)} · {item_stats(item)}"
+
+
+def render_drop(item: Item | ItemDraft, current: Item | None) -> str:
+    """El ▲/▼ es lo que el jugador necesita para decidir en un segundo."""
+    slot = SLOT_NAMES[item.slot].lower()
+    if current is None:
+        comparison = DROP_EMPTY.format(slot=slot)
+    elif item.power > current.power:
+        comparison = DROP_BETTER.format(slot=slot, before=current.power, after=item.power)
+    elif item.power < current.power:
+        comparison = DROP_WORSE.format(slot=slot, before=current.power, after=item.power)
+    else:
+        comparison = DROP_EQUAL.format(slot=slot)
+    return DROP.format(item=format_item(item), comparison=comparison)
+
+
+def render_inventory(
+    items: list[Item], page: int, pages: int, total: int, equipped_ids: set[int]
+) -> str:
+    lines = [
+        INVENTORY_LINE.format(
+            index=index,
+            slot=SLOT_EMOJI[item.slot],
+            item=format_item(item),
+            equipped=EQUIPPED_MARK if item.id in equipped_ids else "",
+        )
+        for index, item in enumerate(items, start=1)
+    ]
+    return INVENTORY.format(
+        total=total, page=page, pages=pages, items="\n".join(lines), hint=INVENTORY_HINT
+    )
 
 
 def render_event(event: Event, monster: Monster) -> str:

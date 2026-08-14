@@ -13,9 +13,9 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 from bot import keyboards, texts
 from bot.callbacks import FightCB
 from bot.db import transaction
-from bot.game import balance, combat, formulas, monsters
+from bot.game import balance, combat, formulas, loot, monsters
 from bot.models import Fight, Player
-from bot.repo import fights, players
+from bot.repo import fights, items, players
 
 logger = logging.getLogger(__name__)
 router = Router(name="dungeon")
@@ -185,9 +185,10 @@ async def on_fight_action(
         await cb.answer(texts.ALREADY_ACTED)
         return
 
+    equipped = await items.get_equipped(db, player)
     max_hp = formulas.max_hp(player.level)
     state = combat.CombatState(
-        stats=formulas.effective_stats(player, []),
+        stats=formulas.effective_stats(player, [i for i in equipped.values() if i is not None]),
         player_hp=fight.player_hp,
         player_max_hp=max_hp,
         potions=player.potions,
@@ -207,13 +208,18 @@ async def on_fight_action(
 
     if new_state.finished:
         updated_player, summary = _apply_outcome(player, fight, new_state, now)
+        drop = loot.roll(fight.monster.level, _rng) if new_state.outcome == combat.WIN else None
         async with transaction(db):
             claimed = await fights.claim(db, fight)
             if claimed:
                 await players.save_after_fight(db, updated_player)
+                if drop is not None:
+                    await items.create(db, player.user_id, drop, now)
         if not claimed:
             await cb.answer(texts.ALREADY_ACTED)
             return
+        if drop is not None:
+            summary += texts.render_drop(drop, equipped[drop.slot])
         closed = replace(
             fight,
             player_hp=new_state.player_hp,

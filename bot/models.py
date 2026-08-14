@@ -56,6 +56,23 @@ class Item:
 
 
 @dataclass(frozen=True, slots=True)
+class ItemDraft:
+    """Un objeto recién generado, todavía sin dueño ni identificador."""
+
+    slot: str
+    name: str
+    rarity: str
+    item_level: int
+    atk: int
+    defense: int
+    crit: int
+
+    @property
+    def power(self) -> int:
+        return self.atk + self.defense + self.crit
+
+
+@dataclass(frozen=True, slots=True)
 class Monster:
     name: str
     emoji: str

@@ -44,6 +44,16 @@ BOSS_REWARD_MULTIPLIER = 2.5
 XP_REWARD_BASE, XP_REWARD_EXPONENT = 18, 1.2
 GOLD_REWARD_RANGE = (8, 15)
 
+# clave, probabilidad, multiplicador, emoji
+RARITIES: tuple[tuple[str, float, float, str], ...] = (
+    ("common", 0.600, 1.00, "⚪"),
+    ("uncommon", 0.250, 1.25, "🟢"),
+    ("rare", 0.110, 1.60, "🔵"),
+    ("epic", 0.035, 2.10, "🟣"),
+    ("legendary", 0.005, 3.00, "🟠"),
+)
+WEAPON_CRIT_MIN_RANK = 2  # de raro para arriba
+
 ITEM_POWER_BASE, ITEM_POWER_PER_LEVEL = 2, 1.2
 ITEM_POWER_VARIANCE = (0.9, 1.1)
 WEAPON_CRIT_RANGE = (1, 5)
