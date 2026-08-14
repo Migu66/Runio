@@ -2,8 +2,9 @@
 
 from aiogram import Dispatcher
 
-from bot.handlers import start
+from bot.handlers import profile, start
 
 
 def register_all(dp: Dispatcher) -> None:
     dp.include_router(start.router)
+    dp.include_router(profile.router)
