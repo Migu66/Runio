@@ -6,6 +6,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramUnauthorizedError
 from aiogram.types import BotCommand
 
 from bot import db as database
@@ -43,7 +44,11 @@ async def main() -> None:
         )
         logger.info("Arrancando como @%s", me.username)
         await dp.start_polling(bot)
+    except TelegramUnauthorizedError:
+        logger.error("Telegram rechaza el token. Revisa BOT_TOKEN en tu .env")
+        raise SystemExit(1) from None
     finally:
+        await bot.session.close()  # start_polling ya la cierra; esto cubre el arranque fallido
         await db.close()
         logger.info("Base de datos cerrada")
 
