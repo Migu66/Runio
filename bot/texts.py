@@ -3,13 +3,27 @@
 import html
 
 from bot.game import balance, formulas
-from bot.models import SLOT_AMULET, SLOT_ARMOR, SLOT_WEAPON, Item, Player, Stats
+from bot.game.combat import Event
+from bot.models import (
+    SLOT_AMULET,
+    SLOT_ARMOR,
+    SLOT_WEAPON,
+    Fight,
+    Item,
+    Monster,
+    Player,
+    Stats,
+)
 
 BAR_WIDTH = 10
 BAR_FULL = "█"
 BAR_EMPTY = "░"
 
 BTN_PROFILE = "👤 Perfil"
+BTN_DUNGEON = "⚔️ Mazmorra"
+BTN_ATTACK = "⚔️ Atacar"
+BTN_POTION = "🧪 Poción ({n})"
+BTN_FLEE = "🏃 Huir"
 
 WELCOME = (
     "⚔️ <b>Runio</b>\n\n"
@@ -41,6 +55,53 @@ PROFILE = (
 EMPTY_SLOT = "—"
 
 ENERGY_HINT = "   (+1 en {time})"
+
+BOSS_TAG = "   👑 <b>JEFE</b>"
+
+FIGHT = (
+    "{emoji} <b>{monster}</b> — nivel {level}{boss}\n"
+    "\n"
+    "❤️ {player_bar} {player_hp}/{player_max}\n"
+    "{emoji} {monster_bar} {monster_hp}/{monster_max}"
+    "{log}"
+)
+
+EVENTS = {
+    "player_hit": "⚔️ Le atizas para {amount} de daño",
+    "player_hit_crit": "💥 ¡Crítico! Le abres en canal para {amount}",
+    "monster_hit": "🩸 {monster} te alcanza para {amount}",
+    "monster_hit_crit": "💥 ¡{monster} te revienta para {amount}!",
+    "potion": "🧪 Apuras una poción y recuperas {amount}",
+    "no_potions": "🧪 No te quedan pociones",
+    "flee_ok": "🏃 Sales corriendo y esta vez cuela",
+    "flee_fail": "🏃 Intentas huir y te cortan el paso",
+    "win": "🏆 {monster} se desploma",
+    "loss": "💀 Todo se vuelve negro",
+    "draw": "🤝 Ninguno de los dos puede más",
+}
+
+VICTORY = (
+    "🏆 <b>Victoria</b>\n\n"
+    "Has acabado con {monster}.\n"
+    "✨ +{xp} de experiencia   💰 +{gold} de oro"
+    "{level_up}"
+)
+LEVEL_UP = "\n\n🎉 <b>¡Nivel {level}!</b> Te has recuperado del todo."
+DEFEAT = (
+    "💀 <b>Derrota</b>\n\n"
+    "{monster} ha podido contigo.\n"
+    "💰 Pierdes {gold} de oro.\n"
+    "❤️ Despiertas con {hp}/{max_hp}. Ni la experiencia ni el equipo se tocan."
+)
+FLED = "🏃 <b>Huida</b>\n\nEscapas de {monster}. Sin premio, pero vivo."
+DRAW = "🤝 <b>Tablas</b>\n\n{monster} y tú os quedáis sin fuelle. Nadie se lleva nada."
+
+NO_ENERGY = "⚡ Te has quedado sin energía. Vuelve en {time}."
+FIGHT_ALREADY_ACTIVE = "Ya tienes un combate en marcha. Resuélvelo antes de buscar otro."
+NOT_YOUR_FIGHT = "Ese no es tu combate"
+FIGHT_OVER = "Este combate ya terminó"
+ALREADY_ACTED = "Ya has actuado"
+NO_POTIONS_LEFT = "No te quedan pociones"
 
 
 def escape(name: str) -> str:
@@ -75,6 +136,44 @@ def format_item(item: Item | None) -> str:
     if item is None:
         return EMPTY_SLOT
     return escape(item.name)
+
+
+def render_event(event: Event, monster: Monster) -> str:
+    key = event.kind
+    if event.is_crit and f"{key}_crit" in EVENTS:
+        key = f"{key}_crit"
+    return EVENTS[key].format(amount=event.amount, monster=escape(monster.name))
+
+
+def render_fight(fight: Fight, player_max_hp: int) -> str:
+    monster = fight.monster
+    log = "\n\n" + "\n".join(fight.log) if fight.log else ""
+    return FIGHT.format(
+        emoji=monster.emoji,
+        monster=escape(monster.name),
+        level=monster.level,
+        boss=BOSS_TAG if monster.is_boss else "",
+        player_bar=progress_bar(fight.player_hp, player_max_hp),
+        player_hp=fight.player_hp,
+        player_max=player_max_hp,
+        monster_bar=progress_bar(fight.monster_hp, monster.max_hp),
+        monster_hp=fight.monster_hp,
+        monster_max=monster.max_hp,
+        log=log,
+    )
+
+
+def render_victory(monster: Monster, xp: int, gold: int, levels: int, level: int) -> str:
+    return VICTORY.format(
+        monster=escape(monster.name),
+        xp=xp,
+        gold=gold,
+        level_up=LEVEL_UP.format(level=level) if levels else "",
+    )
+
+
+def render_defeat(monster: Monster, gold_lost: int, hp: int, max_hp_value: int) -> str:
+    return DEFEAT.format(monster=escape(monster.name), gold=gold_lost, hp=hp, max_hp=max_hp_value)
 
 
 def render_profile(

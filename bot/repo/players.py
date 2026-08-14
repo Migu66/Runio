@@ -48,6 +48,40 @@ async def apply_regen(
     return fresh
 
 
+async def set_energy(db: aiosqlite.Connection, user_id: int, energy: int, energy_ts: int) -> None:
+    """Escritura suelta; el handler la envuelve en su transacción."""
+    await db.execute(
+        "UPDATE players SET energy = ?, energy_ts = ? WHERE user_id = ?",
+        (energy, energy_ts, user_id),
+    )
+
+
+async def set_potions(db: aiosqlite.Connection, user_id: int, potions: int) -> None:
+    await db.execute("UPDATE players SET potions = ? WHERE user_id = ?", (potions, user_id))
+
+
+async def save_after_fight(db: aiosqlite.Connection, player: Player) -> None:
+    """Vuelca todo lo que puede cambiar al terminar un combate."""
+    await db.execute(
+        """
+        UPDATE players SET level = ?, xp = ?, hp = ?, hp_ts = ?, gold = ?,
+                           potions = ?, wins = ?, losses = ?
+        WHERE user_id = ?
+        """,
+        (
+            player.level,
+            player.xp,
+            player.hp,
+            player.hp_ts,
+            player.gold,
+            player.potions,
+            player.wins,
+            player.losses,
+            player.user_id,
+        ),
+    )
+
+
 async def get_or_create(
     db: aiosqlite.Connection, user_id: int, name: str, now: int
 ) -> tuple[Player, bool]:

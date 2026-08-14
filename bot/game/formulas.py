@@ -60,6 +60,28 @@ def seconds_to_next_energy(energy: int, energy_ts: int, now: int) -> int:
     return balance.ENERGY_REGEN_SECONDS - elapsed % balance.ENERGY_REGEN_SECONDS
 
 
+def spend_energy(energy: int, energy_ts: int, now: int, cost: int) -> tuple[int, int] | None:
+    """Regenera y cobra el coste. None si no llega.
+
+    Si estaba al máximo el ts se fija en `now` antes de restar; si no, la barra
+    empezaría a contar desde una marca vieja y se rellenaría al instante.
+    """
+    energy, energy_ts = regen_energy(energy, energy_ts, now)
+    if energy < cost:
+        return None
+    if energy >= balance.ENERGY_MAX:
+        energy_ts = now
+    return energy - cost, energy_ts
+
+
+def death_gold_loss(gold: int) -> int:
+    return max(0, int(gold * balance.DEATH_GOLD_PENALTY))
+
+
+def death_hp(max_hp_value: int) -> int:
+    return max(1, round(max_hp_value * balance.DEATH_HP_RESTORE))
+
+
 def hp_per_cycle(max_hp_value: int) -> int:
     return math.ceil(max_hp_value * balance.HP_REGEN_PERCENT)
 

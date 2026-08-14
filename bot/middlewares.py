@@ -9,7 +9,7 @@ from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message, TelegramObject, User
 
 from bot import texts
-from bot.repo import players
+from bot.repo import fights, players
 
 Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
 
@@ -45,5 +45,7 @@ class EnsurePlayerMiddleware(BaseMiddleware):
 
         now = int(time.time())
         data["now"] = now
-        data["player"] = await players.apply_regen(db, player, now)
+        # La vida no se regenera mientras hay un combate abierto.
+        in_fight = await fights.exists(db, user.id)
+        data["player"] = await players.apply_regen(db, player, now, heal=not in_fight)
         return await handler(event, data)

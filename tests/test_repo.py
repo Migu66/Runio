@@ -7,11 +7,17 @@ from pathlib import Path
 from typing import TypeVar
 
 import aiosqlite
+import pytest
 
 from bot import db as database
-from bot.repo import players
+from bot.models import Monster
+from bot.repo import fights, players
 
 T = TypeVar("T")
+
+MONSTER = Monster(
+    name="Goblin salvaje", emoji="👺", level=5, max_hp=100, atk=16, defense=5, is_boss=False
+)
 
 
 def run_with_db(tmp_path: Path, scenario: Callable[[aiosqlite.Connection], Awaitable[T]]) -> T:
@@ -74,6 +80,77 @@ def test_la_regeneracion_se_persiste_solo_cuando_cambia(tmp_path: Path) -> None:
         assert fresco.energy == 8
         assert fresco.hp > 10
         assert await players.get(db, 7) == fresco
+
+    run_with_db(tmp_path, scenario)
+
+
+def test_solo_puede_haber_un_combate_por_jugador(tmp_path: Path) -> None:
+    async def scenario(db: aiosqlite.Connection) -> None:
+        await players.get_or_create(db, 7, "Ana", 1_000)
+        await fights.create(db, 7, MONSTER, 52, chat_id=1, message_id=2, now=1_000)
+        with pytest.raises(aiosqlite.IntegrityError):
+            await fights.create(db, 7, MONSTER, 52, chat_id=1, message_id=3, now=1_001)
+
+    run_with_db(tmp_path, scenario)
+
+
+def test_el_combate_va_y_vuelve_de_la_base_de_datos(tmp_path: Path) -> None:
+    async def scenario(db: aiosqlite.Connection) -> None:
+        await players.get_or_create(db, 7, "Ana", 1_000)
+        creado = await fights.create(db, 7, MONSTER, 52, chat_id=1, message_id=2, now=1_000)
+        leido = await fights.get(db, 7)
+        assert leido == creado
+        assert leido is not None and leido.monster == MONSTER
+        assert await fights.exists(db, 7) is True
+
+    run_with_db(tmp_path, scenario)
+
+
+def test_el_doble_toque_no_avanza_dos_veces_el_turno(tmp_path: Path) -> None:
+    async def scenario(db: aiosqlite.Connection) -> None:
+        await players.get_or_create(db, 7, "Ana", 1_000)
+        fight = await fights.create(db, 7, MONSTER, 52, chat_id=1, message_id=2, now=1_000)
+
+        assert await fights.advance(db, fight, 40, 30, ("primer golpe",)) is True
+        assert await fights.advance(db, fight, 10, 5, ("golpe repetido",)) is False
+
+        actual = await fights.get(db, 7)
+        assert actual is not None
+        assert (actual.turn, actual.player_hp, actual.monster_hp) == (1, 40, 30)
+        assert actual.log == ("primer golpe",)
+
+    run_with_db(tmp_path, scenario)
+
+
+def test_solo_el_primero_cierra_el_combate(tmp_path: Path) -> None:
+    async def scenario(db: aiosqlite.Connection) -> None:
+        await players.get_or_create(db, 7, "Ana", 1_000)
+        fight = await fights.create(db, 7, MONSTER, 52, chat_id=1, message_id=2, now=1_000)
+        assert await fights.claim(db, fight) is True
+        assert await fights.claim(db, fight) is False
+        assert await fights.get(db, 7) is None
+
+    run_with_db(tmp_path, scenario)
+
+
+def test_el_registro_de_combate_se_queda_en_cuatro_lineas(tmp_path: Path) -> None:
+    async def scenario(db: aiosqlite.Connection) -> None:
+        await players.get_or_create(db, 7, "Ana", 1_000)
+        fight = await fights.create(db, 7, MONSTER, 52, chat_id=1, message_id=2, now=1_000)
+        await fights.advance(db, fight, 40, 30, tuple(f"línea {n}" for n in range(10)))
+        actual = await fights.get(db, 7)
+        assert actual is not None
+        assert actual.log == ("línea 6", "línea 7", "línea 8", "línea 9")
+
+    run_with_db(tmp_path, scenario)
+
+
+def test_borrar_un_jugador_borra_su_combate(tmp_path: Path) -> None:
+    async def scenario(db: aiosqlite.Connection) -> None:
+        await players.get_or_create(db, 7, "Ana", 1_000)
+        await fights.create(db, 7, MONSTER, 52, chat_id=1, message_id=2, now=1_000)
+        await db.execute("DELETE FROM players WHERE user_id = 7")
+        assert await fights.get(db, 7) is None
 
     run_with_db(tmp_path, scenario)
 
