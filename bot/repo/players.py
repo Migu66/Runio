@@ -1,5 +1,7 @@
 """Operaciones sobre la tabla players."""
 
+from dataclasses import replace
+
 import aiosqlite
 
 from bot.db import transaction
@@ -11,10 +13,39 @@ def _to_player(row: aiosqlite.Row) -> Player:
     return Player(**dict(row))
 
 
+def _regenerated(player: Player, now: int, heal: bool) -> Player:
+    """El mismo objeto si no cambia nada, para poder ahorrarnos la escritura."""
+    energy, energy_ts = formulas.regen_energy(player.energy, player.energy_ts, now)
+    hp, hp_ts = player.hp, player.hp_ts
+    if heal:
+        hp, hp_ts = formulas.regen_hp(player.hp, player.hp_ts, formulas.max_hp(player.level), now)
+    if energy == player.energy and hp == player.hp:
+        return player
+    return replace(player, energy=energy, energy_ts=energy_ts, hp=hp, hp_ts=hp_ts)
+
+
 async def get(db: aiosqlite.Connection, user_id: int) -> Player | None:
     async with db.execute("SELECT * FROM players WHERE user_id = ?", (user_id,)) as cur:
         row = await cur.fetchone()
     return _to_player(row) if row is not None else None
+
+
+async def apply_regen(
+    db: aiosqlite.Connection, player: Player, now: int, *, heal: bool = True
+) -> Player:
+    """Regeneración perezosa de energía y vida; solo escribe si algún valor sube."""
+    if _regenerated(player, now, heal) is player:
+        return player
+    async with transaction(db):
+        current = await get(db, player.user_id)
+        if current is None:  # pragma: no cover - el jugador se borró entre medias
+            return player
+        fresh = _regenerated(current, now, heal)
+        await db.execute(
+            "UPDATE players SET energy = ?, energy_ts = ?, hp = ?, hp_ts = ? WHERE user_id = ?",
+            (fresh.energy, fresh.energy_ts, fresh.hp, fresh.hp_ts, fresh.user_id),
+        )
+    return fresh
 
 
 async def get_or_create(

@@ -11,7 +11,9 @@ router = Router(name="profile")
 
 @router.message(Command("perfil"))
 @router.message(F.text == texts.BTN_PROFILE)
-async def cmd_profile(message: Message, player: Player) -> None:
+async def cmd_profile(message: Message, player: Player, now: int) -> None:
     equipped: dict[str, Item | None] = dict.fromkeys(SLOTS)
     stats = formulas.effective_stats(player, [])
-    await message.answer(texts.render_profile(player, stats, equipped))
+    seconds = formulas.seconds_to_next_energy(player.energy, player.energy_ts, now)
+    hint = "" if seconds == 0 else texts.ENERGY_HINT.format(time=texts.format_duration(seconds))
+    await message.answer(texts.render_profile(player, stats, equipped, hint))

@@ -1,5 +1,6 @@
 """Middlewares del bot."""
 
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -27,7 +28,7 @@ async def _ask_for_start(event: TelegramObject) -> None:
 
 
 class EnsurePlayerMiddleware(BaseMiddleware):
-    """Inyecta data["player"]. Si no hay personaje y el evento no es /start, corta."""
+    """Inyecta data["player"] ya regenerado. Si no hay personaje y no es /start, corta."""
 
     async def __call__(self, handler: Handler, event: TelegramObject, data: dict[str, Any]) -> Any:
         user: User | None = data.get("event_from_user")
@@ -42,5 +43,7 @@ class EnsurePlayerMiddleware(BaseMiddleware):
             await _ask_for_start(event)
             return None
 
-        data["player"] = player
+        now = int(time.time())
+        data["now"] = now
+        data["player"] = await players.apply_regen(db, player, now)
         return await handler(event, data)

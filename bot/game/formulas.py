@@ -1,5 +1,6 @@
-"""Progresión y estadísticas efectivas. Funciones puras, sin azar ni estado."""
+"""Progresión, regeneración y estadísticas efectivas. Funciones puras, sin azar ni estado."""
 
+import math
 from collections.abc import Iterable
 
 from bot.game import balance
@@ -31,6 +32,51 @@ def apply_xp(level: int, xp: int, gained: int) -> tuple[int, int, int]:
         level += 1
         levels += 1
     return level, xp, levels
+
+
+def regen_energy(energy: int, energy_ts: int, now: int) -> tuple[int, int]:
+    """Devuelve (energía_actual, nuevo_ts).
+
+    Si ya está al máximo, el ts se adelanta a `now` para que no se acumule crédito
+    invisible. Si no, solo se consumen los ciclos completos y el resto se arrastra.
+    """
+    energy = max(0, energy)
+    if energy >= balance.ENERGY_MAX:
+        return balance.ENERGY_MAX, now
+    gained = max(0, (now - energy_ts) // balance.ENERGY_REGEN_SECONDS)
+    if gained == 0:
+        return energy, energy_ts
+    return (
+        min(balance.ENERGY_MAX, energy + gained),
+        energy_ts + gained * balance.ENERGY_REGEN_SECONDS,
+    )
+
+
+def seconds_to_next_energy(energy: int, energy_ts: int, now: int) -> int:
+    """Segundos hasta el siguiente punto. Espera valores ya regenerados; 0 si está llena."""
+    if energy >= balance.ENERGY_MAX:
+        return 0
+    elapsed = max(0, now - energy_ts)
+    return balance.ENERGY_REGEN_SECONDS - elapsed % balance.ENERGY_REGEN_SECONDS
+
+
+def hp_per_cycle(max_hp_value: int) -> int:
+    return math.ceil(max_hp_value * balance.HP_REGEN_PERCENT)
+
+
+def regen_hp(hp: int, hp_ts: int, max_hp_value: int, now: int) -> tuple[int, int]:
+    """Igual que la energía pero curando un porcentaje de la vida máxima por ciclo."""
+    hp = max(0, hp)
+    if hp >= max_hp_value:
+        return max_hp_value, now
+    cycles = max(0, (now - hp_ts) // balance.HP_REGEN_SECONDS)
+    if cycles == 0:
+        return hp, hp_ts
+    healed = cycles * hp_per_cycle(max_hp_value)
+    return (
+        min(max_hp_value, hp + healed),
+        hp_ts + cycles * balance.HP_REGEN_SECONDS,
+    )
 
 
 def effective_stats(player: Player, equipped: Iterable[Item]) -> Stats:

@@ -40,6 +40,8 @@ PROFILE = (
 
 EMPTY_SLOT = "—"
 
+ENERGY_HINT = "   (+1 en {time})"
+
 
 def escape(name: str) -> str:
     """Un jugador que se llame <b> no debe romper el parseo."""

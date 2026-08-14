@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import TypeVar
 
@@ -53,6 +54,26 @@ def test_el_personaje_persiste_y_el_nombre_se_sincroniza(tmp_path: Path) -> None
         stored = await players.get(db, 7)
         assert stored == renamed
         assert await players.get(db, 8) is None
+
+    run_with_db(tmp_path, scenario)
+
+
+def test_la_regeneracion_se_persiste_solo_cuando_cambia(tmp_path: Path) -> None:
+    async def scenario(db: aiosqlite.Connection) -> None:
+        player, _ = await players.get_or_create(db, 7, "Ana", 1_000)
+        herido = replace(player, hp=10, energy=5, hp_ts=1_000, energy_ts=1_000)
+        await db.execute(
+            "UPDATE players SET hp = ?, energy = ?, hp_ts = ?, energy_ts = ? WHERE user_id = 7",
+            (herido.hp, herido.energy, herido.hp_ts, herido.energy_ts),
+        )
+
+        quieto = await players.apply_regen(db, herido, 1_030)
+        assert quieto is herido  # ni un ciclo completo: no se escribe
+
+        fresco = await players.apply_regen(db, herido, 1_000 + 3 * 360)
+        assert fresco.energy == 8
+        assert fresco.hp > 10
+        assert await players.get(db, 7) == fresco
 
     run_with_db(tmp_path, scenario)
 
